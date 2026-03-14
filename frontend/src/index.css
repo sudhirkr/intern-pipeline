@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  --color-slate-925: #0c1222;
+  --color-accent: #3b82f6;
+  --color-accent-light: #60a5fa;
+  --color-accent-dark: #2563eb;
+  --color-emerald-accent: #10b981;
+  --color-amber-accent: #f59e0b;
+  --color-rose-accent: #f43f5e;
+}
+
+body {
+  @apply bg-slate-925 text-gray-100 antialiased;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Dark scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-slate-900;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-700 rounded-full;
+}
+
+/* Drag-and-drop zone animations */
+.drop-zone {
+  @apply border-2 border-dashed border-slate-600 rounded-2xl p-8 text-center cursor-pointer transition-all duration-300;
+}
+.drop-zone:hover {
+  @apply border-blue-500 bg-blue-500/5;
+}
+.drop-zone.dragging {
+  @apply border-blue-400 bg-blue-400/10 scale-[1.02];
+}
+.drop-zone.has-file {
+  @apply border-emerald-500 bg-emerald-500/5;
+}
+
+/* Auto-filled field highlight */
+.field-auto-filled {
+  @apply bg-blue-500/10 border-blue-500/30;
+}
+
+/* Spinner animation */
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 2s linear infinite;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* Pulse animation for status */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
