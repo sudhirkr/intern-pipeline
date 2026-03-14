@@ -310,13 +310,14 @@ function SkipResumeButton({ onClick }) {
 // ── Main Form ──
 
 export default function CandidateForm({ onSuccess }) {
-  const [step, setStep] = useState(1); // 1 = resume upload, 2 = form
+  const [step, setStep] = useState(1); // 1 = resume upload, 2 = form, 3 = success
   const [form, setForm] = useState(initialForm);
   const [autoFilled, setAutoFilled] = useState(new Set());
   const [resumeFile, setResumeFile] = useState(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [parsing, setParsing] = useState(false);
+  const [submissionResult, setSubmissionResult] = useState(null);
 
   const update = (field) => (e) => {
     setForm({ ...form, [field]: e.target.value });
@@ -372,18 +373,49 @@ export default function CandidateForm({ onSuccess }) {
         formData.append('resume_file', resumeFile);
       }
 
-      await createCandidate(formData);
-      setForm(initialForm);
-      setAutoFilled(new Set());
-      setResumeFile(null);
-      setStep(1);
-      if (onSuccess) onSuccess();
+      const result = await createCandidate(formData);
+      setSubmissionResult(result);
+      setStep(3); // success screen
     } catch (err) {
       setError(err.message);
     } finally {
       setSubmitting(false);
     }
   };
+
+  // ── Step 3: Success ──
+  if (step === 3 && submissionResult) {
+    const appUrl = `${window.location.origin}/application/${submissionResult.submission_token}`;
+    return (
+      <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-6 sm:p-8 shadow-2xl shadow-black/20 text-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+          <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 className="text-2xl font-bold text-white mb-2">Application Submitted!</h3>
+        <p className="text-slate-400 mb-6">Your application has been received. Save the link below to view or edit your application later.</p>
+
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 mb-6">
+          <p className="text-xs text-slate-500 mb-2">Your Application Link</p>
+          <p className="text-sm text-blue-400 font-mono break-all mb-3">{appUrl}</p>
+          <button
+            onClick={() => { navigator.clipboard.writeText(appUrl); }}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+          >
+            Copy Link
+          </button>
+        </div>
+
+        <a
+          href={`/application/${submissionResult.submission_token}`}
+          className="inline-block px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/25"
+        >
+          View Your Application →
+        </a>
+      </div>
+    );
+  }
 
   // ── Step 1: Resume Upload ──
   if (step === 1) {
