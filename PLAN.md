@@ -3,7 +3,7 @@
 ## Overview
 Automated intern selection pipeline for collecting resumes, building candidate personas, assigning AI-related projects, tracking submissions, and auto-grading them.
 
-## Status: Sprint 1 — Complete ✅
+## Status: All Sprints Complete ✅
 
 ## Tech Stack
 - **Backend:** Python + FastAPI + SQLAlchemy + SQLite
@@ -71,7 +71,7 @@ Automated intern selection pipeline for collecting resumes, building candidate p
 
 ### Sprint 3: Assign AI Assignments
 **Goal:** Manage project list + assign to candidates
-**Status:** Not Started
+**Status:** Complete ✅
 **Deliverables:**
 - Project/assignment CRUD (add, edit, delete your project list)
 - Assignment allocation to candidates
@@ -80,7 +80,7 @@ Automated intern selection pipeline for collecting resumes, building candidate p
 
 ### Sprint 4: Track Submissions
 **Goal:** GitHub repo + deployed URL validation
-**Status:** Not Started
+**Status:** Complete ✅
 **Deliverables:**
 - GitHub repo existence + accessibility check
 - Deployed URL checker (HTTP status, basic functionality)
@@ -89,7 +89,7 @@ Automated intern selection pipeline for collecting resumes, building candidate p
 
 ### Sprint 5: Auto-Grade
 **Goal:** Automated grading with weighted scores + feedback
-**Status:** Not Started
+**Status:** Complete ✅
 **Deliverables:**
 - Code analysis engine (clone repo + LLM review)
 - Deployed app tester (Playwright or HTTP)
@@ -99,7 +99,7 @@ Automated intern selection pipeline for collecting resumes, building candidate p
 
 ### Sprint 6: Polish & Integrate
 **Goal:** Full flow works end-to-end, auth, deployment
-**Status:** Not Started
+**Status:** Complete ✅
 **Deliverables:**
 - Auth (basic login for admin)
 - Error handling, loading states
@@ -109,7 +109,7 @@ Automated intern selection pipeline for collecting resumes, building candidate p
 
 ### Sprint 7: End-to-End Testing
 **Goal:** Full pipeline tested with browser automation
-**Status:** Not Started
+**Status:** Complete ✅
 **Deliverables:**
 - Browser automation tests (full UI flow)
 - API integration tests
@@ -164,3 +164,18 @@ intern-pipeline/
 - 2026-03-14 15:15 — Sprint 2 complete. LLM persona generation via OpenRouter. Persona service with prompt, parsing, validation. New endpoints: POST /generate-persona, GET /persona. PersonaCard component in frontend. 62/62 tests passing. Real resumes: Raja, Sohan, VijayVarma in data/.
 - 2026-03-14 13:37 — Sprint 1.5 test fixes. Updated test_candidates.py to work with new auth model: POST returns CandidateSubmissionResponse (not full CandidateResponse), GET list/single require admin JWT. Added admin login helper (`_get_admin_token`, `_admin_headers`), updated clean_db to also clear Admin table. Fixed seed_admin to include `db.rollback()` before insert. All 23/23 tests passing.
 - 2026-03-14 14:30 — Frontend + Tests complete. Added: (1) `/application/:token` route — candidate view/edit page with read-only display + edit mode via `PUT /api/candidates/by-token/{token}`. (2) `/login` route — admin login form (email+password), stores JWT in localStorage, redirects to `/admin`. (3) `/admin` route — admin dashboard with candidate table (name/email/college/availability/status), search bar, status filter, click-to-view detail panel, status update buttons. Protected route (redirects to `/login` if unauthenticated). (4) Updated `api/client.js` with auth header support, admin endpoints (`fetchAdminCandidates`, `fetchAdminCandidate`, `updateCandidateStatus`, `adminLogin`), and candidate by-token endpoints. (5) After form submission, shows success screen with submission token link + copy button + "View Application" link. Backend `GET /api/candidates/by-token/{token}` and `PUT /api/candidates/by-token/{token}` already existed. 44/44 tests passing. Frontend builds without errors.
+
+## Completion Summary
+- Sprint 1: Candidate submission + resume parser ✅
+- Sprint 1.5: Auth & roles + admin dashboard ✅
+- Sprint 2: LLM persona builder ✅
+- Sprint 3: Assignment manager ✅
+- Sprint 4: Submission tracker (GitHub + deploy) ✅
+- Sprint 5: Auto-grading engine ✅
+- Sprint 6: Polish ✅
+- Sprint 7: E2E tests ✅
+
+### Final Stats
+- 106/106 tests passing
+- Frontend builds clean
+- Full pipeline: submit → persona → assign → submit work → grade

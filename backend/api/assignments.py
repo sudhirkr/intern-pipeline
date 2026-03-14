@@ -1,4 +1,8 @@
 """Assignment CRUD and candidate-assignment linking API."""
+import os
+import shutil
+import tempfile
+import json
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -223,7 +227,6 @@ def get_assignment_by_token(
 
 # ── Work Submission (candidate via token) ──
 
-import json
 from schemas import SubmitWorkRequest, SubmitWorkResponse, GradeResponse
 from services.github import check_github_repo
 from services.deploy_check import check_deployed_url
@@ -276,4 +279,132 @@ async def submit_work(
         github_stats=json.dumps(github_result),
         deploy_valid=deploy_result["valid"],
         deploy_stats=json.dumps(deploy_result),
+    )
+
+
+# ── Grading Endpoints (admin) ──
+
+grading_router = APIRouter(prefix="/api/grading", tags=["grading"])
+
+
+@grading_router.post("/candidates/{candidate_id}/grade", response_model=GradeResponse)
+async def grade_candidate(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    """Admin: trigger grading for a candidate's submission.
+
+    Requires the candidate to have submitted work (GitHub + deploy URLs).
+    Clones the repo, analyzes code quality, scores all categories.
+    """
+    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    ca = db.query(CandidateAssignment).filter(
+        CandidateAssignment.candidate_id == candidate_id
+    ).first()
+    if not ca:
+        raise HTTPException(status_code=404, detail="No assignment found for this candidate")
+
+    if not ca.github_repo_url and not ca.deployed_url:
+        raise HTTPException(status_code=400, detail="Candidate has not submitted any work yet")
+
+    # Clone repo for analysis
+    repo_path = None
+    if ca.github_repo_url:
+        repo_path = tempfile.mkdtemp(prefix="grade_")
+        clone_success = clone_repo(ca.github_repo_url, repo_path)
+        if not clone_success:
+            repo_path = None
+
+    # Build candidate data for AI usage and creativity grading
+    candidate_data = {
+        "name": candidate.name,
+        "skills": candidate.skills,
+        "ai_tool_usage": candidate.ai_tool_usage,
+        "projects": candidate.projects,
+        "challenge_solved": candidate.challenge_solved,
+    }
+
+    # Calculate grades
+    try:
+        results = await calculate_overall_grade(
+            deploy_stats=ca.deploy_stats or '{}',
+            github_stats=ca.github_stats or '{}',
+            candidate_data=candidate_data,
+            repo_path=repo_path,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Grading failed: {str(e)}")
+
+    # Clean up cloned repo
+    if repo_path and os.path.exists(repo_path):
+        try:
+            shutil.rmtree(repo_path)
+        except Exception:
+            pass
+
+    # Store results
+    ca.grade_overall = results["overall"]
+    ca.grade_deployed = results["deployed"]["score"]
+    ca.grade_code_quality = results["code_quality"]["score"]
+    ca.grade_ai_usage = results["ai_usage"]["score"]
+    ca.grade_creativity = results["creativity"]["score"]
+
+    feedback = {
+        "deployed": results["deployed"]["feedback"],
+        "code_quality": results["code_quality"]["feedback"],
+        "ai_usage": results["ai_usage"]["feedback"],
+        "creativity": results["creativity"]["feedback"],
+    }
+    ca.grade_feedback = json.dumps(feedback)
+    ca.graded_at = datetime.now(timezone.utc)
+
+    if ca.status != AssignmentStatus.GRADED:
+        ca.status = AssignmentStatus.GRADED
+
+    db.commit()
+    db.refresh(ca)
+
+    return GradeResponse(
+        id=ca.id,
+        candidate_id=ca.candidate_id,
+        grade_overall=ca.grade_overall,
+        grade_deployed=ca.grade_deployed,
+        grade_code_quality=ca.grade_code_quality,
+        grade_ai_usage=ca.grade_ai_usage,
+        grade_creativity=ca.grade_creativity,
+        grade_feedback=ca.grade_feedback,
+        graded_at=ca.graded_at,
+    )
+
+
+@grading_router.get("/candidates/{candidate_id}/grade", response_model=GradeResponse)
+async def get_candidate_grade(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    """Admin: get grade results for a candidate."""
+    ca = db.query(CandidateAssignment).filter(
+        CandidateAssignment.candidate_id == candidate_id
+    ).first()
+    if not ca:
+        raise HTTPException(status_code=404, detail="No assignment found for this candidate")
+
+    if ca.grade_overall is None:
+        raise HTTPException(status_code=404, detail="Candidate has not been graded yet")
+
+    return GradeResponse(
+        id=ca.id,
+        candidate_id=ca.candidate_id,
+        grade_overall=ca.grade_overall,
+        grade_deployed=ca.grade_deployed,
+        grade_code_quality=ca.grade_code_quality,
+        grade_ai_usage=ca.grade_ai_usage,
+        grade_creativity=ca.grade_creativity,
+        grade_feedback=ca.grade_feedback,
+        graded_at=ca.graded_at,
     )
