@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchCandidateByToken, updateCandidateByToken } from '../api/client';
+import { fetchCandidateByToken, updateCandidateByToken, fetchPersona } from '../api/client';
+import PersonaCard from './PersonaCard';
 
 const LEARNING_STYLES = [
   { value: 'visual', label: 'Visual' },
@@ -81,12 +82,22 @@ export default function ApplicationView() {
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  const [persona, setPersona] = useState(null);
+  const [personaGenerated, setPersonaGenerated] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
         const data = await fetchCandidateByToken(token);
         setCandidate(data);
+        // Try loading persona
+        try {
+          const p = await fetchPersona(data.id, token);
+          setPersona(p.persona);
+          setPersonaGenerated(p.persona_generated);
+        } catch {
+          // Persona not available yet
+        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -296,6 +307,14 @@ export default function ApplicationView() {
                 <DetailField label="Challenge Solved" value={candidate.challenge_solved} />
               </dl>
             </div>
+
+            {/* Persona */}
+            <PersonaCard
+              candidateId={candidate.id}
+              persona={persona}
+              personaGenerated={personaGenerated}
+              isAdmin={false}
+            />
           </div>
         ) : (
           <div className="space-y-6">

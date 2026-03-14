@@ -110,3 +110,32 @@ export async function updateCandidateStatus(id, status) {
   }
   return res.json();
 }
+
+// ── Persona endpoints ──
+
+export async function generatePersona(candidateId) {
+  const res = await fetch(`${API_BASE}/candidates/${candidateId}/generate-persona`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to generate persona');
+  }
+  return res.json();
+}
+
+export async function fetchPersona(candidateId, token = null) {
+  const params = token ? `?token=${token}` : '';
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : authHeaders();
+  const res = await fetch(`${API_BASE}/candidates/${candidateId}/persona${params}`, {
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to fetch persona');
+  }
+  return res.json();
+}

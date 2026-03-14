@@ -1,3 +1,4 @@
+import json
 import os
 import uuid
 from pathlib import Path
@@ -9,13 +10,14 @@ from database import get_db
 from models import Candidate, Availability, LearningStyle
 from schemas import (
     CandidateCreate, CandidateResponse, CandidateListResponse,
-    CandidateUpdate, CandidateSubmissionResponse,
+    CandidateUpdate, CandidateSubmissionResponse, PersonaResponse, PersonaData,
 )
 from auth import (
     generate_submission_token, require_candidate_token,
-    get_optional_admin,
+    get_optional_admin, get_current_admin,
 )
 from services.resume_parser import parse_resume_file, parse_resume_from_url
+from services.persona import generate_persona, candidate_to_dict
 
 
 def _validate_enum(value: str | None, enum_cls, field_name: str) -> str | None:
@@ -273,3 +275,91 @@ def update_candidate_by_token(
     db.commit()
     db.refresh(candidate)
     return candidate
+
+
+# ── Persona Endpoints ──
+
+@router.post("/{candidate_id}/generate-persona", response_model=PersonaResponse)
+async def generate_candidate_persona(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    """Admin: Generate LLM persona for a candidate."""
+    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    candidate_data = candidate_to_dict(candidate)
+
+    try:
+        persona = await generate_persona(candidate_data)
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Persona generation failed: {str(e)}")
+
+    # Store persona as JSON string
+    candidate.persona = json.dumps(persona)
+    db.commit()
+    db.refresh(candidate)
+
+    return PersonaResponse(
+        id=candidate.id,
+        name=candidate.name,
+        email=candidate.email,
+        persona=persona,
+        persona_generated=True,
+    )
+
+
+@router.get("/{candidate_id}/persona", response_model=PersonaResponse)
+def get_candidate_persona(
+    candidate_id: int,
+    token: str | None = Query(None),
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
+    """Get stored persona for a candidate. Admin or candidate with token."""
+    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    # Check if admin
+    is_admin = False
+    try:
+        auth_header = request.headers.get("Authorization", "") if request else ""
+        if auth_header.startswith("Bearer "):
+            from auth import decode_access_token
+            payload = decode_access_token(auth_header[7:])
+            if payload.get("role") == "admin":
+                is_admin = True
+    except Exception:
+        pass
+
+    if not is_admin:
+        # Check candidate token
+        sub_token = token
+        if not sub_token and request:
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                sub_token = auth_header[7:]
+
+        if not sub_token or candidate.submission_token != sub_token:
+            raise HTTPException(status_code=403, detail="Access denied. Provide a valid submission token.")
+
+    persona_data = None
+    if candidate.persona:
+        try:
+            persona_dict = json.loads(candidate.persona)
+            persona_data = PersonaData(**persona_dict)
+        except (json.JSONDecodeError, Exception):
+            persona_data = None
+
+    return PersonaResponse(
+        id=candidate.id,
+        name=candidate.name,
+        email=candidate.email,
+        persona=persona_data,
+        persona_generated=persona_data is not None,
+    )

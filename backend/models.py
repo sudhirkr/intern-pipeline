@@ -56,6 +56,9 @@ class Candidate(Base):
     # File upload
     resume_url = Column(String(500))
 
+    # LLM-generated persona
+    persona = Column(Text, nullable=True)  # JSON string with persona profile
+
     # Status tracking
     status = Column(String(50), default="submitted")  # submitted, reviewing, accepted, rejected
 

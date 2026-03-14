@@ -62,7 +62,7 @@ Automated intern selection pipeline for collecting resumes, building candidate p
 
 ### Sprint 2: Build Candidate Persona
 **Goal:** Resume → LLM-generated candidate profile
-**Status:** Not Started
+**Status:** Building
 **Deliverables:**
 - Resume text extraction (PDF/DOCX)
 - LLM persona generation pipeline

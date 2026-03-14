@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { fetchAdminCandidates, fetchAdminCandidate, updateCandidateStatus } from '../api/client';
+import { fetchAdminCandidates, fetchAdminCandidate, updateCandidateStatus, fetchPersona } from '../api/client';
+import PersonaCard from './PersonaCard';
 
 const STATUS_OPTIONS = ['submitted', 'reviewing', 'accepted', 'rejected'];
 
@@ -38,6 +39,8 @@ export default function AdminDashboard() {
   const [selected, setSelected] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [selectedPersona, setSelectedPersona] = useState(null);
+  const [selectedPersonaLoading, setSelectedPersonaLoading] = useState(false);
   const navigate = useNavigate();
 
   // Check auth
@@ -70,13 +73,19 @@ export default function AdminDashboard() {
 
   const selectCandidate = async (id) => {
     setDetailLoading(true);
+    setSelectedPersonaLoading(true);
     try {
-      const data = await fetchAdminCandidate(id);
+      const [data, personaData] = await Promise.all([
+        fetchAdminCandidate(id),
+        fetchPersona(id).catch(() => ({ persona: null, persona_generated: false })),
+      ]);
       setSelected(data);
+      setSelectedPersona(personaData);
     } catch (err) {
       console.error('Failed to load candidate:', err);
     } finally {
       setDetailLoading(false);
+      setSelectedPersonaLoading(false);
     }
   };
 
@@ -188,6 +197,7 @@ export default function AdminDashboard() {
                       <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Email</th>
                       <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">College</th>
                       <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Availability</th>
+                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Persona</th>
                       <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Status</th>
                     </tr>
                   </thead>
@@ -202,6 +212,17 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3 text-sm text-slate-400">{c.email}</td>
                         <td className="px-4 py-3 text-sm text-slate-400">{c.college || '—'}</td>
                         <td className="px-4 py-3 text-sm text-slate-400 capitalize">{c.availability?.replace('_', ' ') || '—'}</td>
+                        <td className="px-4 py-3">
+                          {c.persona ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                              ✓ Generated
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-800 text-slate-500 border border-slate-700/50">
+                              — Pending
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
                       </tr>
                     ))}
@@ -274,6 +295,26 @@ export default function AdminDashboard() {
                       <DetailField label="Preferred Tech Stack" value={selected.preferred_tech_stack} />
                       <DetailField label="AI Tool Usage" value={selected.ai_tool_usage} />
                       <DetailField label="Challenge Solved" value={selected.challenge_solved} />
+                    </div>
+
+                    {/* Persona */}
+                    <div className="mt-6">
+                      {selectedPersonaLoading ? (
+                        <div className="flex justify-center py-4">
+                          <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      ) : (
+                        <PersonaCard
+                          candidateId={selected.id}
+                          persona={selectedPersona?.persona}
+                          personaGenerated={selectedPersona?.persona_generated}
+                          isAdmin={true}
+                          onPersonaGenerated={(newPersona) => {
+                            setSelectedPersona({ persona: newPersona, persona_generated: true });
+                            load(); // refresh list to show persona indicator
+                          }}
+                        />
+                      )}
                     </div>
                   </>
                 )}

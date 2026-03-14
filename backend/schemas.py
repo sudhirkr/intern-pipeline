@@ -111,3 +111,25 @@ class CandidateSubmissionResponse(BaseModel):
     email: str
     submission_token: str
     message: str = "Application submitted successfully. Save your link to view/edit your application."
+
+
+# ── Persona Schemas ──
+
+class PersonaData(BaseModel):
+    skill_level: str
+    strengths: list[str]
+    gaps: list[str]
+    learning_style: str
+    assignment_fit: str
+    risk_flags: list[str]
+    summary: str
+
+
+class PersonaResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    persona: Optional[PersonaData] = None
+    persona_generated: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
