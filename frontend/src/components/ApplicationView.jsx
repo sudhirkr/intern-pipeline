@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchCandidateByToken, updateCandidateByToken, fetchPersona } from '../api/client';
 import PersonaCard from './PersonaCard';
+import AssignmentView from './AssignmentView';
 
 const LEARNING_STYLES = [
   { value: 'visual', label: 'Visual' },
@@ -315,6 +316,17 @@ export default function ApplicationView() {
               personaGenerated={personaGenerated}
               isAdmin={false}
             />
+
+            {/* Assigned Project */}
+            <div className="mt-6">
+              <h3 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Assigned Project
+              </h3>
+              <AssignmentView token={token} />
+            </div>
           </div>
         ) : (
           <div className="space-y-6">

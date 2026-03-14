@@ -111,6 +111,73 @@ export async function updateCandidateStatus(id, status) {
   return res.json();
 }
 
+// ── Assignment endpoints ──
+
+export async function fetchAssignments() {
+  const res = await fetch(`${API_BASE}/assignments`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error('Failed to fetch assignments');
+  return res.json();
+}
+
+export async function createAssignment(data) {
+  const res = await fetch(`${API_BASE}/assignments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to create assignment');
+  }
+  return res.json();
+}
+
+export async function updateAssignment(id, data) {
+  const res = await fetch(`${API_BASE}/assignments/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to update assignment');
+  }
+  return res.json();
+}
+
+export async function deleteAssignment(id) {
+  const res = await fetch(`${API_BASE}/assignments/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to delete assignment');
+  }
+}
+
+export async function assignToCandidate(assignmentId, candidateId) {
+  const res = await fetch(`${API_BASE}/assignments/${assignmentId}/assign/${candidateId}`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to assign candidate');
+  }
+  return res.json();
+}
+
+export async function fetchCandidateAssignment(candidateId) {
+  const res = await fetch(`${API_BASE}/assignments/candidate/${candidateId}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error('No assignment found');
+  return res.json();
+}
+
 // ── Persona endpoints ──
 
 export async function generatePersona(candidateId) {

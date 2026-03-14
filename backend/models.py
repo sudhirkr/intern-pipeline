@@ -1,5 +1,6 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum as SQLEnum
+from sqlalchemy.orm import relationship
 import enum
 
 from database import Base
@@ -63,6 +64,18 @@ class Candidate(Base):
     status = Column(String(50), default="submitted")  # submitted, reviewing, accepted, rejected
 
 
+class Difficulty(str, enum.Enum):
+    EASY = "easy"
+    MEDIUM = "medium"
+    HARD = "hard"
+
+
+class AssignmentStatus(str, enum.Enum):
+    ASSIGNED = "assigned"
+    SUBMITTED = "submitted"
+    GRADED = "graded"
+
+
 class Admin(Base):
     __tablename__ = "admins"
 
@@ -70,3 +83,50 @@ class Admin(Base):
     email = Column(String(200), unique=True, nullable=False, index=True)
     password_hash = Column(String(200), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Assignment(Base):
+    __tablename__ = "assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(300), nullable=False)
+    description = Column(Text, nullable=False)
+    tech_stack = Column(Text)  # comma-separated
+    difficulty = Column(SQLEnum(Difficulty), default=Difficulty.MEDIUM)
+    expected_outcome = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    candidate_assignments = relationship("CandidateAssignment", back_populates="assignment")
+
+
+class CandidateAssignment(Base):
+    __tablename__ = "candidate_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    candidate_id = Column(Integer, ForeignKey("candidates.id"), nullable=False)
+    assignment_id = Column(Integer, ForeignKey("assignments.id"), nullable=False)
+    assigned_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(SQLEnum(AssignmentStatus), default=AssignmentStatus.ASSIGNED)
+    github_repo_url = Column(String(500), nullable=True)
+    deployed_url = Column(String(500), nullable=True)
+    submitted_at = Column(DateTime, nullable=True)
+
+    # Submission validation results (from github.py and deploy_check.py)
+    github_valid = Column(Integer, nullable=True)  # 1=valid, 0=invalid
+    github_stats = Column(Text, nullable=True)  # JSON: stars, language, commits, description, size
+    deploy_valid = Column(Integer, nullable=True)  # 1=valid, 0=invalid
+    deploy_stats = Column(Text, nullable=True)  # JSON: status_code, response_time_ms, has_content
+
+    # Grading results (from grader.py)
+    grade_overall = Column(Integer, nullable=True)  # 0-100
+    grade_deployed = Column(Integer, nullable=True)  # 0-100
+    grade_code_quality = Column(Integer, nullable=True)  # 0-100
+    grade_ai_usage = Column(Integer, nullable=True)  # 0-100
+    grade_creativity = Column(Integer, nullable=True)  # 0-100
+    grade_feedback = Column(Text, nullable=True)  # JSON string with detailed feedback
+    graded_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    assignment = relationship("Assignment", back_populates="candidate_assignments")
+    candidate = relationship("Candidate")

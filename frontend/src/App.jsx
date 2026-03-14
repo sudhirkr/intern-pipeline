@@ -3,6 +3,7 @@ import ApplyPage from './components/ApplyPage';
 import ApplicationView from './components/ApplicationView';
 import LoginPage from './components/LoginPage';
 import AdminDashboard from './components/AdminDashboard';
+import AssignmentManager from './components/AssignmentManager';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route path="/application/:token" element={<ApplicationView />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/assignments" element={<AssignmentManager />} />
       </Routes>
     </BrowserRouter>
   );

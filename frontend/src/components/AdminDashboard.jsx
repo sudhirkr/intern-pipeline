@@ -126,6 +126,10 @@ export default function AdminDashboard() {
             </div>
           </Link>
           <div className="flex items-center gap-4">
+            <nav className="flex items-center gap-4 mr-4">
+              <Link to="/admin" className="text-sm text-white font-medium">Candidates</Link>
+              <Link to="/admin/assignments" className="text-sm text-slate-400 hover:text-white transition-colors">Assignments</Link>
+            </nav>
             <span className="text-sm text-slate-400">{localStorage.getItem('admin_email')}</span>
             <button
               onClick={handleLogout}

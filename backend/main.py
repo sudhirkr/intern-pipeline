@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine, SessionLocal
 from api import candidates
 from api.admin import router as auth_router, admin_router, seed_admin
+from api.assignments import router as assignment_router, candidate_assignment_router
 
 # Ensure data directories exist before creating tables
 os.makedirs("data", exist_ok=True)
@@ -42,6 +43,8 @@ app.add_middleware(
 app.include_router(candidates.router)
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(assignment_router)
+app.include_router(candidate_assignment_router)
 
 
 @app.get("/")
