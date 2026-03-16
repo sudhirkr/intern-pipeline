@@ -3,12 +3,16 @@ import csv
 import io
 import re
 import time
+from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from auth import get_current_admin
-from models import Admin
+from database import SessionLocal
+from models import Admin, ProjectEvaluation
 
 router = APIRouter(prefix="/api/admin/projects", tags=["projects"])
 
@@ -158,3 +162,71 @@ def get_projects_sheet(
 
     _cache[csv_url] = (now, data)
     return data
+
+
+# --- Project Evaluation endpoints ---
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+class EvaluationIn(BaseModel):
+    marks: int  # 0-10
+    feedback: str | None = None
+
+
+class EvaluationOut(BaseModel):
+    project_name: str
+    marks: int | None
+    feedback: str | None
+    evaluated_at: datetime | None
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/evaluations")
+def list_evaluations(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Return all evaluations keyed by project name."""
+    rows = db.query(ProjectEvaluation).all()
+    return {
+        r.project_name: {"marks": r.marks, "feedback": r.feedback, "evaluated_at": r.evaluated_at}
+        for r in rows
+    }
+
+
+@router.put("/evaluations/{project_name}")
+def upsert_evaluation(
+    project_name: str,
+    body: EvaluationIn,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Create or update evaluation for a project."""
+    if body.marks < 0 or body.marks > 10:
+        raise HTTPException(status_code=400, detail="Marks must be between 0 and 10")
+
+    row = db.query(ProjectEvaluation).filter(ProjectEvaluation.project_name == project_name).first()
+    if row:
+        row.marks = body.marks
+        row.feedback = body.feedback
+        row.evaluated_at = datetime.utcnow()
+    else:
+        row = ProjectEvaluation(
+            project_name=project_name,
+            marks=body.marks,
+            feedback=body.feedback,
+            evaluated_at=datetime.utcnow(),
+        )
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {"project_name": row.project_name, "marks": row.marks, "feedback": row.feedback, "evaluated_at": row.evaluated_at}

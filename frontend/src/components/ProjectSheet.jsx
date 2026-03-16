@@ -69,13 +69,53 @@ function AttendanceStats({ projects }) {
   );
 }
 
-function ProjectCard({ project }) {
+function ProjectCard({ project, evaluation, onEvaluate }) {
+  const [editing, setEditing] = useState(false);
+  const [marks, setMarks] = useState(evaluation?.marks ?? '');
+  const [feedback, setFeedback] = useState(evaluation?.feedback ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    const m = parseInt(marks, 10);
+    if (isNaN(m) || m < 0 || m > 10) return;
+    setSaving(true);
+    try {
+      await onEvaluate(project.project_name, m, feedback);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const scoreColor = (s) => {
+    if (s >= 8) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    if (s >= 5) return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+    if (s >= 3) return 'text-orange-400 bg-orange-500/10 border-orange-500/20';
+    return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+  };
+
   return (
     <div className="bg-slate-900/50 border border-slate-800/50 rounded-xl overflow-hidden hover:border-slate-700/50 transition-colors">
       {/* Project header */}
       <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-slate-800/50 bg-slate-800/20">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <h3 className="text-base font-semibold text-white">{project.project_name}</h3>
+          <div className="flex items-center gap-3 min-w-0">
+            <h3 className="text-base font-semibold text-white truncate">{project.project_name}</h3>
+            {/* Score badge */}
+            {!editing && (
+              <button
+                onClick={() => setEditing(true)}
+                className={`shrink-0 inline-flex items-center px-2.5 py-1 rounded-lg text-sm font-bold border cursor-pointer hover:ring-2 hover:ring-blue-500/40 transition-all ${
+                  evaluation?.marks != null
+                    ? scoreColor(evaluation.marks)
+                    : 'text-slate-500 bg-slate-800/60 border-slate-700/40'
+                }`}
+                title="Click to evaluate"
+              >
+                {evaluation?.marks != null ? `${evaluation.marks}/10` : '—/10'}
+              </button>
+            )}
+          </div>
           <div className="flex flex-wrap gap-3 text-sm">
             {project.project_link && (
               <ExternalLink href={project.project_link}>ChatGPT</ExternalLink>
@@ -88,6 +128,52 @@ function ProjectCard({ project }) {
             )}
           </div>
         </div>
+
+        {/* Inline evaluation form */}
+        {editing && (
+          <div className="mt-3 p-3 bg-slate-950/50 rounded-lg border border-slate-700/30">
+            <div className="flex items-center gap-3 mb-2">
+              <label className="text-sm text-slate-400">Marks:</label>
+              <input
+                type="number"
+                min="0"
+                max="10"
+                value={marks}
+                onChange={e => setMarks(e.target.value)}
+                className="w-16 bg-slate-800 border border-slate-700/50 rounded-lg px-2 py-1 text-white text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                autoFocus
+              />
+              <span className="text-xs text-slate-500">/10</span>
+            </div>
+            <textarea
+              placeholder="Feedback (optional)..."
+              value={feedback}
+              onChange={e => setFeedback(e.target.value)}
+              rows={2}
+              className="w-full bg-slate-800 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none mb-2"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => { setEditing(false); setMarks(evaluation?.marks ?? ''); setFeedback(evaluation?.feedback ?? ''); }}
+                className="px-3 py-1.5 text-xs text-slate-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Feedback display */}
+        {!editing && evaluation?.feedback && (
+          <p className="mt-2 text-xs text-slate-400 italic">{evaluation.feedback}</p>
+        )}
       </div>
 
       {/* Students */}
@@ -185,12 +271,36 @@ function DesktopNav() {
 
 export default function ProjectSheet() {
   const [projects, setProjects] = useState([]);
+  const [evaluations, setEvaluations] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [sheetUrl, setSheetUrl] = useState('');
   const [activeUrl, setActiveUrl] = useState('');
   const navigate = useNavigate();
+
+  const fetchEvaluations = useCallback(() => {
+    fetch('/api/admin/projects/evaluations', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
+    })
+      .then(res => res.ok ? res.json() : {})
+      .then(data => setEvaluations(data || {}))
+      .catch(() => {});
+  }, []);
+
+  const handleEvaluate = useCallback(async (projectName, marks, feedback) => {
+    const res = await fetch(`/api/admin/projects/evaluations/${encodeURIComponent(projectName)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('admin_token')}`,
+      },
+      body: JSON.stringify({ marks, feedback: feedback || null }),
+    });
+    if (!res.ok) throw new Error('Failed to save evaluation');
+    const saved = await res.json();
+    setEvaluations(prev => ({ ...prev, [projectName]: saved }));
+  }, []);
 
   const fetchProjects = useCallback((url) => {
     setLoading(true);
@@ -216,7 +326,8 @@ export default function ProjectSheet() {
       return;
     }
     fetchProjects('');
-  }, [navigate, fetchProjects]);
+    fetchEvaluations();
+  }, [navigate, fetchProjects, fetchEvaluations]);
 
   const handleLoadSheet = (e) => {
     e.preventDefault();
@@ -356,7 +467,7 @@ export default function ProjectSheet() {
         {/* Project cards grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filtered.map((project, i) => (
-            <ProjectCard key={i} project={project} />
+            <ProjectCard key={i} project={project} evaluation={evaluations[project.project_name]} onEvaluate={handleEvaluate} />
           ))}
         </div>
 

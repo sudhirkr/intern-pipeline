@@ -135,3 +135,16 @@ class CandidateAssignment(Base):
     # Relationships
     assignment = relationship("Assignment", back_populates="candidate_assignments")
     candidate = relationship("Candidate")
+
+
+class ProjectEvaluation(Base):
+    """Manual evaluation marks for projects from the Google Sheet."""
+    __tablename__ = "project_evaluations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_name = Column(String(300), nullable=False, unique=True, index=True)
+    marks = Column(Integer, nullable=True)  # 0-10
+    feedback = Column(Text, nullable=True)
+    evaluated_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
