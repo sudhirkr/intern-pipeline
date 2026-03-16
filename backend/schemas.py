@@ -131,6 +131,7 @@ class PersonaResponse(BaseModel):
     email: str
     persona: Optional[PersonaData] = None
     persona_generated: bool = False
+    persona_generated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -4,7 +4,7 @@ import os
 import httpx
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "openrouter/openrouter/hunter-alpha"
+MODEL = "openrouter/hunter-alpha"
 
 PERSONA_PROMPT = """You are an expert technical recruiter analyzing a candidate's application for an AI/ML internship program.
 

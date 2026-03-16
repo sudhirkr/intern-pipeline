@@ -59,6 +59,11 @@ class Candidate(Base):
 
     # LLM-generated persona
     persona = Column(Text, nullable=True)  # JSON string with persona profile
+    persona_generated_at = Column(DateTime, nullable=True)  # when persona was last generated
+
+    # Resume caching
+    resume_hash = Column(String(64), nullable=True)  # SHA-256 of uploaded file bytes
+    resume_parsed = Column(Text, nullable=True)  # JSON string of LLM-extracted resume data
 
     # Status tracking
     status = Column(String(50), default="submitted")  # submitted, reviewing, accepted, rejected

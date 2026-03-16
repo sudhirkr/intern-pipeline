@@ -85,6 +85,7 @@ export default function ApplicationView() {
   const [saveMsg, setSaveMsg] = useState('');
   const [persona, setPersona] = useState(null);
   const [personaGenerated, setPersonaGenerated] = useState(false);
+  const [personaGeneratedAt, setPersonaGeneratedAt] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -96,6 +97,7 @@ export default function ApplicationView() {
           const p = await fetchPersona(data.id, token);
           setPersona(p.persona);
           setPersonaGenerated(p.persona_generated);
+          setPersonaGeneratedAt(p.persona_generated_at || null);
         } catch {
           // Persona not available yet
         }
@@ -203,30 +205,30 @@ export default function ApplicationView() {
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Title */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
           <div>
-            <h2 className="text-2xl font-bold text-white">{candidate.name}</h2>
-            <p className="text-sm text-slate-400 mt-1">Application submitted • Save this link to view/edit later</p>
+            <h2 className="text-xl sm:text-2xl font-bold text-white">{candidate.name}</h2>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">Application submitted • Save this link to view/edit later</p>
           </div>
           {!editMode ? (
             <button
               onClick={startEdit}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors"
+              className="w-full sm:w-auto px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors min-h-[44px]"
             >
               Edit Application
             </button>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full sm:w-auto">
               <button
                 onClick={() => setEditMode(false)}
-                className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-xl transition-colors"
+                className="flex-1 sm:flex-none px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-xl transition-colors min-h-[44px]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 text-white font-medium rounded-xl transition-colors"
+                className="flex-1 sm:flex-none px-5 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 text-white font-medium rounded-xl transition-colors min-h-[44px]"
               >
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
@@ -241,14 +243,14 @@ export default function ApplicationView() {
         )}
 
         {/* Share link */}
-        <div className="mb-8 bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4 flex items-center gap-4">
-          <div className="flex-1 min-w-0">
+        <div className="mb-6 sm:mb-8 bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+          <div className="flex-1 min-w-0 w-full">
             <p className="text-xs text-slate-500 mb-1">Your application link</p>
-            <p className="text-sm text-slate-300 truncate font-mono">{window.location.href}</p>
+            <p className="text-xs sm:text-sm text-slate-300 truncate font-mono">{window.location.href}</p>
           </div>
           <button
             onClick={() => { navigator.clipboard.writeText(window.location.href); }}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-slate-300 text-sm rounded-xl transition-colors flex-shrink-0"
+            className="w-full sm:w-auto px-4 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-slate-300 text-sm rounded-xl transition-colors flex-shrink-0 min-h-[44px]"
           >
             Copy Link
           </button>
@@ -314,6 +316,7 @@ export default function ApplicationView() {
               candidateId={candidate.id}
               persona={persona}
               personaGenerated={personaGenerated}
+              personaGeneratedAt={personaGeneratedAt}
               isAdmin={false}
             />
 

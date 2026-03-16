@@ -1,16 +1,29 @@
 import os
 import sys
+import time
+import uuid
+
+# Load .env before anything else
+from dotenv import load_dotenv
+load_dotenv()
 
 # Ensure the backend directory is on the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI
+# Setup logging before importing anything that uses loggers
+from logging_config import setup_logging, get_logger
+setup_logging()
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from database import Base, engine, SessionLocal
 from api import candidates
 from api.admin import router as auth_router, admin_router, seed_admin
 from api.assignments import router as assignment_router, candidate_assignment_router
 from api.assignments import grading_router
+
+logger = get_logger("main")
 
 # Ensure data directories exist before creating tables
 os.makedirs("data", exist_ok=True)
@@ -26,11 +39,40 @@ try:
 finally:
     db.close()
 
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Attach a unique request ID to every request for traceability."""
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = str(uuid.uuid4())[:8]
+        request.state.request_id = request_id
+
+        start = time.monotonic()
+        response = await call_next(request)
+        duration_ms = int((time.monotonic() - start) * 1000)
+
+        response.headers["X-Request-ID"] = request_id
+
+        logger.info(
+            "%s %s → %d (%dms) [rid=%s]",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            request_id,
+        )
+
+        return response
+
+
 app = FastAPI(
     title="Intern Selection Pipeline",
     version="0.2.0",
     description="Candidate submission and evaluation platform",
 )
+
+# Request ID middleware (outermost)
+app.add_middleware(RequestIDMiddleware)
 
 # CORS for frontend dev
 app.add_middleware(
@@ -39,6 +81,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
 
 app.include_router(candidates.router)

@@ -180,8 +180,9 @@ export async function fetchCandidateAssignment(candidateId) {
 
 // ── Persona endpoints ──
 
-export async function generatePersona(candidateId) {
-  const res = await fetch(`${API_BASE}/candidates/${candidateId}/generate-persona`, {
+export async function generatePersona(candidateId, force = false) {
+  const params = force ? '?force=true' : '';
+  const res = await fetch(`${API_BASE}/candidates/${candidateId}/generate-persona${params}`, {
     method: 'POST',
     headers: authHeaders(),
   });

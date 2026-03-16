@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { createCandidate, parseResume } from '../api/client';
+import { useToast } from './Toast';
 
 const LEARNING_STYLES = [
   { value: 'visual', label: 'Visual' },
@@ -101,9 +102,53 @@ function SectionHeader({ icon, title, subtitle }) {
   );
 }
 
+// ── Multi-Step Progress Indicator ──
+
+const PARSE_STEPS = [
+  { label: '📄 Reading resume file...', icon: '📄' },
+  { label: '🤖 AI is analyzing your resume...', icon: '🤖' },
+  { label: '✅ Resume parsed!', icon: '✅' },
+];
+
+function ParseProgress({ currentStep }) {
+  return (
+    <div className="flex flex-col items-center gap-4">
+      {/* Step dots */}
+      <div className="flex items-center gap-3">
+        {PARSE_STEPS.map((step, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 ${
+                i < currentStep
+                  ? 'bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400'
+                  : i === currentStep
+                  ? 'bg-blue-500/20 border-2 border-blue-500 text-blue-400 animate-pulse'
+                  : 'bg-slate-800 border-2 border-slate-700 text-slate-600'
+              }`}
+            >
+              {i < currentStep ? '✓' : i + 1}
+            </div>
+            {i < PARSE_STEPS.length - 1 && (
+              <div
+                className={`w-8 h-0.5 transition-all duration-500 ${
+                  i < currentStep ? 'bg-emerald-500' : 'bg-slate-700'
+                }`}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+      {/* Current step label */}
+      <p className="text-blue-400 font-medium text-sm">
+        {PARSE_STEPS[Math.min(currentStep, PARSE_STEPS.length - 1)].label}
+      </p>
+    </div>
+  );
+}
+
 // ── Resume Upload Component ──
 
-function ResumeUpload({ onParsed, parsing, setParsing }) {
+function ResumeUpload({ onParsed, parsing, setParsing, setParseStep, parseStep }) {
   const [dragging, setDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [urlMode, setUrlMode] = useState(false);
@@ -111,51 +156,72 @@ function ResumeUpload({ onParsed, parsing, setParsing }) {
   const [error, setError] = useState('');
   const [progress, setProgress] = useState('');
   const fileInputRef = useRef(null);
+  const toast = useToast();
 
   const handleFile = useCallback(async (file) => {
     if (!file) return;
     const ext = file.name.split('.').pop().toLowerCase();
     if (!['pdf', 'docx', 'doc'].includes(ext)) {
       setError('Please upload a PDF or DOCX file');
+      toast.error('Please upload a PDF or DOCX file');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
       setError('File too large (max 10MB)');
+      toast.error('File too large (max 10MB)');
       return;
     }
     setError('');
     setUploadedFile(file);
     setParsing(true);
-    setProgress('Parsing resume...');
+    setParseStep(0); // Step 1: Reading resume file
+
+    // After 1s, advance to step 2
+    const stepTimer = setTimeout(() => setParseStep(1), 1000);
 
     try {
       const result = await parseResume({ file });
-      setProgress('Resume parsed successfully!');
-      onParsed(result.extracted, file);
+      clearTimeout(stepTimer);
+      setParseStep(2); // Step 3: Done
+      const wasCached = result.cached === true;
+      setProgress(wasCached ? 'Resume parsed (cached)! ⚡' : 'Resume parsed successfully!');
+      toast.success(wasCached ? 'Resume loaded from cache! ⚡' : 'Resume parsed successfully!');
+      onParsed(result.extracted, file, wasCached);
     } catch (err) {
+      clearTimeout(stepTimer);
       setError(err.message);
       setProgress('');
+      toast.error(err.message);
     } finally {
       setParsing(false);
     }
-  }, [onParsed, setParsing]);
+  }, [onParsed, setParsing, setParseStep, toast]);
 
   const handleUrlParse = async () => {
     if (!resumeUrl.trim()) {
       setError('Please enter a resume URL');
+      toast.warning('Please enter a resume URL');
       return;
     }
     setError('');
     setParsing(true);
-    setProgress('Fetching and parsing resume...');
+    setParseStep(0);
+
+    const stepTimer = setTimeout(() => setParseStep(1), 1000);
 
     try {
       const result = await parseResume({ resumeUrl: resumeUrl.trim() });
-      setProgress('Resume parsed successfully!');
-      onParsed(result.extracted, null);
+      clearTimeout(stepTimer);
+      setParseStep(2);
+      const wasCached = result.cached === true;
+      setProgress(wasCached ? 'Resume loaded from cache! ⚡' : 'Resume parsed successfully!');
+      toast.success(wasCached ? 'Resume loaded from cache! ⚡' : 'Resume parsed successfully!');
+      onParsed(result.extracted, null, wasCached);
     } catch (err) {
+      clearTimeout(stepTimer);
       setError(err.message);
       setProgress('');
+      toast.error(err.message);
     } finally {
       setParsing(false);
     }
@@ -184,11 +250,11 @@ function ResumeUpload({ onParsed, parsing, setParsing }) {
         <>
           {/* Drag & Drop Zone */}
           <div
-            className={`drop-zone ${dragging ? 'dragging' : ''} ${uploadedFile ? 'has-file' : ''}`}
+            className={`drop-zone min-h-[120px] ${dragging ? 'dragging' : ''} ${uploadedFile ? 'has-file' : ''}`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => !parsing && fileInputRef.current?.click()}
           >
             <input
               ref={fileInputRef}
@@ -198,10 +264,7 @@ function ResumeUpload({ onParsed, parsing, setParsing }) {
               onChange={(e) => handleFile(e.target.files[0])}
             />
             {parsing ? (
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-12 h-12 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-blue-400 font-medium">{progress}</p>
-              </div>
+              <ParseProgress currentStep={parseStep} />
             ) : uploadedFile ? (
               <div className="flex flex-col items-center gap-2">
                 <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
@@ -243,7 +306,7 @@ function ResumeUpload({ onParsed, parsing, setParsing }) {
           {/* URL Input Mode */}
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
             <FieldLabel label="Resume URL" />
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Input
                 placeholder="https://drive.google.com/your-resume.pdf"
                 value={resumeUrl}
@@ -254,12 +317,13 @@ function ResumeUpload({ onParsed, parsing, setParsing }) {
                 type="button"
                 onClick={handleUrlParse}
                 disabled={parsing}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors whitespace-nowrap"
+                className="px-5 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors whitespace-nowrap min-h-[44px]"
               >
                 {parsing ? 'Parsing...' : 'Parse'}
               </button>
             </div>
           </div>
+          {parsing && <ParseProgress currentStep={parseStep} />}
           <div className="text-center">
             <button
               type="button"
@@ -317,7 +381,10 @@ export default function CandidateForm({ onSuccess }) {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [parsing, setParsing] = useState(false);
+  const [parseStep, setParseStep] = useState(0);
+  const [cachedResume, setCachedResume] = useState(false);
   const [submissionResult, setSubmissionResult] = useState(null);
+  const toast = useToast();
 
   const update = (field) => (e) => {
     setForm({ ...form, [field]: e.target.value });
@@ -331,8 +398,9 @@ export default function CandidateForm({ onSuccess }) {
     }
   };
 
-  const handleResumeParsed = (extracted, file) => {
+  const handleResumeParsed = (extracted, file, wasCached = false) => {
     setResumeFile(file);
+    setCachedResume(wasCached);
     const newAutoFilled = new Set();
     const updatedForm = { ...form };
 
@@ -375,9 +443,11 @@ export default function CandidateForm({ onSuccess }) {
 
       const result = await createCandidate(formData);
       setSubmissionResult(result);
+      toast.success('Application submitted successfully!');
       setStep(3); // success screen
     } catch (err) {
       setError(err.message);
+      toast.error(`Submission failed: ${err.message}`);
     } finally {
       setSubmitting(false);
     }
@@ -387,21 +457,21 @@ export default function CandidateForm({ onSuccess }) {
   if (step === 3 && submissionResult) {
     const appUrl = `${window.location.origin}/application/${submissionResult.submission_token}`;
     return (
-      <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-6 sm:p-8 shadow-2xl shadow-black/20 text-center">
+      <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-5 sm:p-8 shadow-2xl shadow-black/20 text-center">
         <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
           <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <h3 className="text-2xl font-bold text-white mb-2">Application Submitted!</h3>
-        <p className="text-slate-400 mb-6">Your application has been received. Save the link below to view or edit your application later.</p>
+        <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">Application Submitted!</h3>
+        <p className="text-sm sm:text-base text-slate-400 mb-6">Your application has been received. Save the link below to view or edit your application later.</p>
 
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 mb-6">
           <p className="text-xs text-slate-500 mb-2">Your Application Link</p>
-          <p className="text-sm text-blue-400 font-mono break-all mb-3">{appUrl}</p>
+          <p className="text-xs sm:text-sm text-blue-400 font-mono break-all mb-3">{appUrl}</p>
           <button
-            onClick={() => { navigator.clipboard.writeText(appUrl); }}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+            onClick={() => { navigator.clipboard.writeText(appUrl); toast.success('Link copied to clipboard!'); }}
+            className="w-full sm:w-auto px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors min-h-[44px]"
           >
             Copy Link
           </button>
@@ -409,7 +479,7 @@ export default function CandidateForm({ onSuccess }) {
 
         <a
           href={`/application/${submissionResult.submission_token}`}
-          className="inline-block px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/25"
+          className="inline-block w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/25 min-h-[44px] flex items-center justify-center sm:inline-flex"
         >
           View Your Application →
         </a>
@@ -428,7 +498,7 @@ export default function CandidateForm({ onSuccess }) {
           <h3 className="text-xl font-bold text-white">Upload Your Resume</h3>
           <p className="text-sm text-slate-400 mt-1">We'll extract your details automatically</p>
         </div>
-        <ResumeUpload onParsed={handleResumeParsed} parsing={parsing} setParsing={setParsing} />
+        <ResumeUpload onParsed={handleResumeParsed} parsing={parsing} setParsing={setParsing} parseStep={parseStep} setParseStep={setParseStep} />
         <div className="mt-6">
           <SkipResumeButton onClick={handleSkipResume} />
         </div>
@@ -449,11 +519,11 @@ export default function CandidateForm({ onSuccess }) {
       )}
 
       {/* Step indicator + back */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
         <button
           type="button"
           onClick={() => setStep(1)}
-          className="text-sm text-slate-400 hover:text-blue-400 transition-colors flex items-center gap-1"
+          className="text-sm text-slate-400 hover:text-blue-400 transition-colors flex items-center gap-1 py-2"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -471,6 +541,11 @@ export default function CandidateForm({ onSuccess }) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           Fields with blue highlight were extracted from your resume. You can edit them.
+          {cachedResume && (
+            <span className="ml-2 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-md text-amber-400 text-[10px] font-medium">
+              ⚡ Cached
+            </span>
+          )}
         </div>
       )}
 
@@ -484,27 +559,27 @@ export default function CandidateForm({ onSuccess }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <FieldLabel label="Full Name" required />
-            <Input required placeholder="Priya Sharma" value={form.name} onChange={update('name')} autoFilled={autoFilled.has('name')} />
+            <Input required placeholder="Priya Sharma" value={form.name} onChange={update('name')} autoFilled={autoFilled.has('name')} disabled={submitting} />
           </div>
           <div>
             <FieldLabel label="Email" required />
-            <Input required type="email" placeholder="priya@example.com" value={form.email} onChange={update('email')} autoFilled={autoFilled.has('email')} />
+            <Input required type="email" placeholder="priya@example.com" value={form.email} onChange={update('email')} autoFilled={autoFilled.has('email')} disabled={submitting} />
           </div>
           <div>
             <FieldLabel label="Phone" />
-            <Input placeholder="+91-9876543210" value={form.phone} onChange={update('phone')} autoFilled={autoFilled.has('phone')} />
+            <Input placeholder="+91-9876543210" value={form.phone} onChange={update('phone')} autoFilled={autoFilled.has('phone')} disabled={submitting} />
           </div>
           <div>
             <FieldLabel label="College" />
-            <Input placeholder="IIT Bombay" value={form.college} onChange={update('college')} autoFilled={autoFilled.has('college')} />
+            <Input placeholder="IIT Bombay" value={form.college} onChange={update('college')} autoFilled={autoFilled.has('college')} disabled={submitting} />
           </div>
           <div>
             <FieldLabel label="Degree" />
-            <Input placeholder="B.Tech Computer Science" value={form.degree} onChange={update('degree')} autoFilled={autoFilled.has('degree')} />
+            <Input placeholder="B.Tech Computer Science" value={form.degree} onChange={update('degree')} autoFilled={autoFilled.has('degree')} disabled={submitting} />
           </div>
           <div>
             <FieldLabel label="Year" />
-            <Input placeholder="3rd Year" value={form.year} onChange={update('year')} autoFilled={autoFilled.has('year')} />
+            <Input placeholder="3rd Year" value={form.year} onChange={update('year')} autoFilled={autoFilled.has('year')} disabled={submitting} />
           </div>
         </div>
       </div>
@@ -519,15 +594,15 @@ export default function CandidateForm({ onSuccess }) {
         <div className="space-y-4">
           <div>
             <FieldLabel label="Skills" />
-            <Input placeholder="Python, React, PostgreSQL, Docker..." value={form.skills} onChange={update('skills')} autoFilled={autoFilled.has('skills')} />
+            <Input placeholder="Python, React, PostgreSQL, Docker..." value={form.skills} onChange={update('skills')} autoFilled={autoFilled.has('skills')} disabled={submitting} />
           </div>
           <div>
             <FieldLabel label="Projects" />
-            <Textarea rows={3} placeholder="Describe your notable projects..." value={form.projects} onChange={update('projects')} autoFilled={autoFilled.has('projects')} />
+            <Textarea rows={3} placeholder="Describe your notable projects..." value={form.projects} onChange={update('projects')} autoFilled={autoFilled.has('projects')} disabled={submitting} />
           </div>
           <div>
             <FieldLabel label="Work Experience" />
-            <Textarea rows={2} placeholder="Internships, part-time jobs..." value={form.work_experience} onChange={update('work_experience')} autoFilled={autoFilled.has('work_experience')} />
+            <Textarea rows={2} placeholder="Internships, part-time jobs..." value={form.work_experience} onChange={update('work_experience')} autoFilled={autoFilled.has('work_experience')} disabled={submitting} />
           </div>
         </div>
       </div>
@@ -542,21 +617,21 @@ export default function CandidateForm({ onSuccess }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <FieldLabel label="Learning Style" />
-            <Select options={LEARNING_STYLES} value={form.learning_style} onChange={update('learning_style')} />
+            <Select options={LEARNING_STYLES} value={form.learning_style} onChange={update('learning_style')} disabled={submitting} />
           </div>
           <div>
             <FieldLabel label="Availability" />
-            <Select options={AVAILABILITIES} value={form.availability} onChange={update('availability')} />
+            <Select options={AVAILABILITIES} value={form.availability} onChange={update('availability')} disabled={submitting} />
           </div>
         </div>
         <div className="mt-4 space-y-4">
           <div>
             <FieldLabel label="Interests" />
-            <Input placeholder="AI/ML, Web Development, Data Science..." value={form.interests} onChange={update('interests')} />
+            <Input placeholder="AI/ML, Web Development, Data Science..." value={form.interests} onChange={update('interests')} disabled={submitting} />
           </div>
           <div>
             <FieldLabel label="Motivation" />
-            <Textarea rows={2} placeholder="Why do you want this internship?" value={form.motivation} onChange={update('motivation')} />
+            <Textarea rows={2} placeholder="Why do you want this internship?" value={form.motivation} onChange={update('motivation')} disabled={submitting} />
           </div>
         </div>
       </div>
@@ -571,11 +646,11 @@ export default function CandidateForm({ onSuccess }) {
         <div className="space-y-4">
           <div>
             <FieldLabel label="Portfolio Links" />
-            <Input placeholder="https://github.com/you, https://yourportfolio.dev" value={form.portfolio_links} onChange={update('portfolio_links')} />
+            <Input placeholder="https://github.com/you, https://yourportfolio.dev" value={form.portfolio_links} onChange={update('portfolio_links')} disabled={submitting} />
           </div>
           <div>
             <FieldLabel label="Preferred Tech Stack" />
-            <Input placeholder="Python, FastAPI, React, PostgreSQL" value={form.preferred_tech_stack} onChange={update('preferred_tech_stack')} />
+            <Input placeholder="Python, FastAPI, React, PostgreSQL" value={form.preferred_tech_stack} onChange={update('preferred_tech_stack')} disabled={submitting} />
           </div>
         </div>
       </div>
@@ -590,11 +665,11 @@ export default function CandidateForm({ onSuccess }) {
         <div className="space-y-4">
           <div>
             <FieldLabel label="AI Tool Usage" />
-            <Textarea rows={2} placeholder="How have you used AI tools (ChatGPT, Copilot, etc.)?" value={form.ai_tool_usage} onChange={update('ai_tool_usage')} />
+            <Textarea rows={2} placeholder="How have you used AI tools (ChatGPT, Copilot, etc.)?" value={form.ai_tool_usage} onChange={update('ai_tool_usage')} disabled={submitting} />
           </div>
           <div>
             <FieldLabel label="Challenge Solved" />
-            <Textarea rows={2} placeholder="Describe a technical challenge you solved..." value={form.challenge_solved} onChange={update('challenge_solved')} />
+            <Textarea rows={2} placeholder="Describe a technical challenge you solved..." value={form.challenge_solved} onChange={update('challenge_solved')} disabled={submitting} />
           </div>
         </div>
       </div>

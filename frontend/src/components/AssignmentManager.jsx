@@ -28,6 +28,63 @@ const EMPTY_FORM = {
   expected_outcome: '',
 };
 
+function MobileNav() {
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_email');
+    navigate('/login');
+  };
+
+  return (
+    <div className="relative sm:hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="p-2 text-slate-400 hover:text-white transition-colors"
+        aria-label="Menu"
+      >
+        {open ? (
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-700/50 rounded-xl shadow-2xl shadow-black/40 overflow-hidden z-50">
+          <Link
+            to="/admin"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-3 text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          >
+            Candidates
+          </Link>
+          <Link
+            to="/admin/assignments"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-3 text-sm text-white bg-blue-500/10 font-medium transition-colors"
+          >
+            Assignments
+          </Link>
+          <div className="border-t border-slate-800/50" />
+          <div className="px-4 py-2 text-xs text-slate-500">{localStorage.getItem('admin_email')}</div>
+          <button
+            onClick={handleLogout}
+            className="block w-full text-left px-4 py-3 text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          >
+            Logout
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AssignmentManager() {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -166,14 +223,15 @@ export default function AssignmentManager() {
             </div>
           </Link>
           <div className="flex items-center gap-4">
-            <nav className="flex items-center gap-4 mr-4">
+            <nav className="hidden sm:flex items-center gap-4 mr-4">
               <Link to="/admin" className="text-sm text-slate-400 hover:text-white transition-colors">Candidates</Link>
               <Link to="/admin/assignments" className="text-sm text-white font-medium">Assignments</Link>
             </nav>
-            <span className="text-sm text-slate-400">{localStorage.getItem('admin_email')}</span>
+            <MobileNav />
+            <span className="hidden sm:inline text-sm text-slate-400">{localStorage.getItem('admin_email')}</span>
             <button
               onClick={handleLogout}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-slate-300 text-sm rounded-xl transition-colors"
+              className="hidden sm:block px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-slate-300 text-sm rounded-xl transition-colors"
             >
               Logout
             </button>
@@ -181,15 +239,15 @@ export default function AssignmentManager() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex gap-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-8">
           {/* Assignment list */}
-          <div className={`${editing ? 'w-1/2' : 'w-full'} transition-all duration-300`}>
-            <div className="mb-6 flex items-center justify-between">
+          <div className={`${editing ? 'hidden lg:block lg:w-1/2' : 'w-full'} transition-all duration-300`}>
+            <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-0 sm:justify-between">
               <h2 className="text-xl font-bold text-white">Assignments ({assignments.length})</h2>
               <button
                 onClick={openCreate}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition-colors"
+                className="w-full sm:w-auto px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition-colors min-h-[44px]"
               >
                 + Create Assignment
               </button>
@@ -212,10 +270,10 @@ export default function AssignmentManager() {
             ) : (
               <div className="space-y-4">
                 {assignments.map((a) => (
-                  <div key={a.id} className="bg-slate-900/50 border border-slate-800/50 rounded-xl p-5 hover:border-slate-700/50 transition-colors">
+                  <div key={a.id} className="bg-slate-900/50 border border-slate-800/50 rounded-xl p-4 sm:p-5 hover:border-slate-700/50 transition-colors">
                     <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2 flex-wrap">
                           <h3 className="text-base font-semibold text-white">{a.title}</h3>
                           <DifficultyBadge difficulty={a.difficulty} />
                         </div>
@@ -232,22 +290,22 @@ export default function AssignmentManager() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-800/50">
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-800/50 flex-wrap">
                       <button
                         onClick={() => openEdit(a)}
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg transition-colors"
+                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg transition-colors min-h-[44px] sm:min-h-0 sm:py-1.5"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => openAssignModal(a)}
-                        className="px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 text-xs font-medium rounded-lg transition-colors"
+                        className="px-3 py-2 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 text-xs font-medium rounded-lg transition-colors min-h-[44px] sm:min-h-0 sm:py-1.5"
                       >
                         Assign to Candidate
                       </button>
                       <button
                         onClick={() => handleDelete(a.id)}
-                        className="px-3 py-1.5 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 border border-rose-500/20 text-xs font-medium rounded-lg transition-colors ml-auto"
+                        className="px-3 py-2 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 border border-rose-500/20 text-xs font-medium rounded-lg transition-colors ml-auto min-h-[44px] sm:min-h-0 sm:py-1.5"
                       >
                         Delete
                       </button>
@@ -260,15 +318,26 @@ export default function AssignmentManager() {
 
           {/* Create/Edit form panel */}
           {editing ? (
-            <div className="w-1/2 sticky top-24 self-start">
-              <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-5 sm:p-6">
+            <div className="w-full lg:w-1/2 lg:sticky lg:top-24 lg:self-start">
+              <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4 sm:p-5 lg:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-white">
-                    {editing === 'create' ? 'Create Assignment' : 'Edit Assignment'}
-                  </h3>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => { setEditing(null); setForm(EMPTY_FORM); setError(''); }}
+                      className="lg:hidden flex items-center gap-1 text-sm text-slate-400 hover:text-white transition-colors py-2 pr-3"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back
+                    </button>
+                    <h3 className="text-lg font-bold text-white">
+                      {editing === 'create' ? 'Create Assignment' : 'Edit Assignment'}
+                    </h3>
+                  </div>
                   <button
                     onClick={() => { setEditing(null); setForm(EMPTY_FORM); setError(''); }}
-                    className="text-slate-500 hover:text-slate-300 transition-colors"
+                    className="text-slate-500 hover:text-slate-300 transition-colors p-2 -m-2"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -290,7 +359,7 @@ export default function AssignmentManager() {
                       value={form.title}
                       onChange={(e) => setForm({ ...form, title: e.target.value })}
                       required
-                      className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                      className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                       placeholder="Assignment title"
                     />
                   </div>
@@ -301,7 +370,7 @@ export default function AssignmentManager() {
                       onChange={(e) => setForm({ ...form, description: e.target.value })}
                       required
                       rows={3}
-                      className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all resize-none"
+                      className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all resize-none"
                       placeholder="Describe the assignment task"
                     />
                   </div>
@@ -311,7 +380,7 @@ export default function AssignmentManager() {
                       type="text"
                       value={form.tech_stack}
                       onChange={(e) => setForm({ ...form, tech_stack: e.target.value })}
-                      className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                      className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                       placeholder="e.g. Python, FastAPI, React"
                     />
                   </div>
@@ -320,7 +389,7 @@ export default function AssignmentManager() {
                     <select
                       value={form.difficulty}
                       onChange={(e) => setForm({ ...form, difficulty: e.target.value })}
-                      className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                      className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
                     >
                       <option value="easy">Easy</option>
                       <option value="medium">Medium</option>
@@ -333,22 +402,22 @@ export default function AssignmentManager() {
                       value={form.expected_outcome}
                       onChange={(e) => setForm({ ...form, expected_outcome: e.target.value })}
                       rows={2}
-                      className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all resize-none"
+                      className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all resize-none"
                       placeholder="What should the candidate deliver?"
                     />
                   </div>
-                  <div className="flex gap-3 pt-2">
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <button
                       type="submit"
                       disabled={saving}
-                      className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition-colors"
+                      className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition-colors min-h-[44px]"
                     >
                       {saving ? 'Saving...' : editing === 'create' ? 'Create Assignment' : 'Update Assignment'}
                     </button>
                     <button
                       type="button"
                       onClick={() => { setEditing(null); setForm(EMPTY_FORM); setError(''); }}
-                      className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-xl transition-colors"
+                      className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-xl transition-colors min-h-[44px]"
                     >
                       Cancel
                     </button>
@@ -362,8 +431,8 @@ export default function AssignmentManager() {
 
       {/* Assign to Candidate Modal */}
       {assignTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800/50 rounded-2xl p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800/50 rounded-2xl p-5 sm:p-6 w-full max-w-md">
             <h3 className="text-lg font-bold text-white mb-1">Assign to Candidate</h3>
             <p className="text-sm text-slate-400 mb-4">
               Assigning: <span className="text-white font-medium">{assignTarget.title}</span>
@@ -380,7 +449,7 @@ export default function AssignmentManager() {
               <select
                 value={selectedCandidateId}
                 onChange={(e) => setSelectedCandidateId(e.target.value)}
-                className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
               >
                 <option value="">— Choose a candidate —</option>
                 {candidates.map((c) => (
@@ -391,17 +460,17 @@ export default function AssignmentManager() {
               </select>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleAssign}
                 disabled={!selectedCandidateId || assigning}
-                className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition-colors"
+                className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition-colors min-h-[44px]"
               >
                 {assigning ? 'Assigning...' : 'Assign'}
               </button>
               <button
                 onClick={() => { setAssignTarget(null); setError(''); }}
-                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-xl transition-colors"
+                className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-xl transition-colors min-h-[44px]"
               >
                 Cancel
               </button>

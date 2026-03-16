@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { fetchAdminCandidates, fetchAdminCandidate, updateCandidateStatus, fetchPersona } from '../api/client';
 import PersonaCard from './PersonaCard';
+import { useToast } from './Toast';
 
 const STATUS_OPTIONS = ['submitted', 'reviewing', 'accepted', 'rejected'];
 
@@ -30,6 +31,72 @@ function DetailField({ label, value }) {
   );
 }
 
+function MobileNav({ current }) {
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_email');
+    navigate('/login');
+  };
+
+  return (
+    <div className="relative sm:hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="p-2 text-slate-400 hover:text-white transition-colors"
+        aria-label="Menu"
+      >
+        {open ? (
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-700/50 rounded-xl shadow-2xl shadow-black/40 overflow-hidden z-50">
+          <Link
+            to="/admin"
+            onClick={() => setOpen(false)}
+            className={`block px-4 py-3 text-sm transition-colors ${current === 'candidates' ? 'text-white bg-blue-500/10 font-medium' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+          >
+            Candidates
+          </Link>
+          <Link
+            to="/admin/assignments"
+            onClick={() => setOpen(false)}
+            className={`block px-4 py-3 text-sm transition-colors ${current === 'assignments' ? 'text-white bg-blue-500/10 font-medium' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+          >
+            Assignments
+          </Link>
+          <div className="border-t border-slate-800/50" />
+          <div className="px-4 py-2 text-xs text-slate-500">{localStorage.getItem('admin_email')}</div>
+          <button
+            onClick={handleLogout}
+            className="block w-full text-left px-4 py-3 text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          >
+            Logout
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DesktopNav() {
+  return (
+    <nav className="hidden sm:flex items-center gap-4 mr-4">
+      <Link to="/admin" className="text-sm text-white font-medium">Candidates</Link>
+      <Link to="/admin/assignments" className="text-sm text-slate-400 hover:text-white transition-colors">Assignments</Link>
+    </nav>
+  );
+}
+
 export default function AdminDashboard() {
   const [candidates, setCandidates] = useState([]);
   const [total, setTotal] = useState(0);
@@ -42,6 +109,7 @@ export default function AdminDashboard() {
   const [selectedPersona, setSelectedPersona] = useState(null);
   const [selectedPersonaLoading, setSelectedPersonaLoading] = useState(false);
   const navigate = useNavigate();
+  const toast = useToast();
 
   // Check auth
   useEffect(() => {
@@ -61,11 +129,13 @@ export default function AdminDashboard() {
       if (err.message.includes('401') || err.message.includes('Not authenticated')) {
         localStorage.removeItem('admin_token');
         navigate('/login');
+      } else {
+        toast.error('Failed to load candidates');
       }
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, navigate]);
+  }, [search, statusFilter, navigate, toast]);
 
   useEffect(() => {
     load();
@@ -83,6 +153,7 @@ export default function AdminDashboard() {
       setSelectedPersona(personaData);
     } catch (err) {
       console.error('Failed to load candidate:', err);
+      toast.error('Failed to load candidate details');
     } finally {
       setDetailLoading(false);
       setSelectedPersonaLoading(false);
@@ -95,9 +166,11 @@ export default function AdminDashboard() {
     try {
       await updateCandidateStatus(selected.id, newStatus);
       setSelected({ ...selected, status: newStatus });
+      toast.success(`Status updated to ${STATUS_CONFIG[newStatus]?.label || newStatus}`);
       load(); // refresh list
     } catch (err) {
       console.error('Failed to update status:', err);
+      toast.error(`Failed to update status: ${err.message}`);
     } finally {
       setUpdating(false);
     }
@@ -126,14 +199,12 @@ export default function AdminDashboard() {
             </div>
           </Link>
           <div className="flex items-center gap-4">
-            <nav className="flex items-center gap-4 mr-4">
-              <Link to="/admin" className="text-sm text-white font-medium">Candidates</Link>
-              <Link to="/admin/assignments" className="text-sm text-slate-400 hover:text-white transition-colors">Assignments</Link>
-            </nav>
-            <span className="text-sm text-slate-400">{localStorage.getItem('admin_email')}</span>
+            <DesktopNav />
+            <MobileNav current="candidates" />
+            <span className="hidden sm:inline text-sm text-slate-400">{localStorage.getItem('admin_email')}</span>
             <button
               onClick={handleLogout}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-slate-300 text-sm rounded-xl transition-colors"
+              className="hidden sm:block px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-slate-300 text-sm rounded-xl transition-colors"
             >
               Logout
             </button>
@@ -141,28 +212,28 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex gap-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-8">
           {/* Candidate list */}
-          <div className={`${selected ? 'w-1/2' : 'w-full'} transition-all duration-300`}>
+          <div className={`${selected ? 'hidden lg:block lg:w-1/2' : 'w-full'} transition-all duration-300`}>
             {/* Filters */}
-            <div className="mb-6 flex flex-col sm:flex-row gap-4">
+            <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row gap-3 sm:gap-4">
               <div className="relative flex-1">
                 <input
                   type="text"
                   placeholder="Search by name, email, or college..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-2.5 pl-10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                  className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-3 pl-10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                 />
-                <svg className="absolute left-3 top-3 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                className="bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
               >
                 <option value="">All Statuses</option>
                 {STATUS_OPTIONS.map(s => (
@@ -177,7 +248,7 @@ export default function AdminDashboard() {
               </p>
             </div>
 
-            {/* Table */}
+            {/* Table (desktop) / Cards (mobile) */}
             {loading ? (
               <div className="space-y-3">
                 {[...Array(4)].map((_, i) => (
@@ -193,58 +264,104 @@ export default function AdminDashboard() {
                 <p className="text-sm text-slate-500">Try adjusting your search or filters</p>
               </div>
             ) : (
-              <div className="bg-slate-900/50 border border-slate-800/50 rounded-xl overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-800/50">
-                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Name</th>
-                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Email</th>
-                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">College</th>
-                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Availability</th>
-                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Persona</th>
-                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {candidates.map((c) => (
-                      <tr
-                        key={c.id}
-                        onClick={() => selectCandidate(c.id)}
-                        className={`border-b border-slate-800/30 cursor-pointer hover:bg-slate-800/30 transition-colors ${selected?.id === c.id ? 'bg-blue-500/5' : ''}`}
-                      >
-                        <td className="px-4 py-3 text-sm font-medium text-white">{c.name}</td>
-                        <td className="px-4 py-3 text-sm text-slate-400">{c.email}</td>
-                        <td className="px-4 py-3 text-sm text-slate-400">{c.college || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-slate-400 capitalize">{c.availability?.replace('_', ' ') || '—'}</td>
-                        <td className="px-4 py-3">
-                          {c.persona ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                              ✓ Generated
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-800 text-slate-500 border border-slate-700/50">
-                              — Pending
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
+              <>
+                {/* Desktop table (md+) */}
+                <div className="hidden md:block bg-slate-900/50 border border-slate-800/50 rounded-xl overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-slate-800/50">
+                        <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Name</th>
+                        <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Email</th>
+                        <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">College</th>
+                        <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Availability</th>
+                        <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Persona</th>
+                        <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {candidates.map((c) => (
+                        <tr
+                          key={c.id}
+                          onClick={() => selectCandidate(c.id)}
+                          className={`border-b border-slate-800/30 cursor-pointer hover:bg-slate-800/30 transition-colors ${selected?.id === c.id ? 'bg-blue-500/5' : ''}`}
+                        >
+                          <td className="px-4 py-3 text-sm font-medium text-white">{c.name}</td>
+                          <td className="px-4 py-3 text-sm text-slate-400">{c.email}</td>
+                          <td className="px-4 py-3 text-sm text-slate-400">{c.college || '—'}</td>
+                          <td className="px-4 py-3 text-sm text-slate-400 capitalize">{c.availability?.replace('_', ' ') || '—'}</td>
+                          <td className="px-4 py-3">
+                            {c.persona ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                ✓ Generated
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-800 text-slate-500 border border-slate-700/50">
+                                — Pending
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile cards (< md) */}
+                <div className="md:hidden space-y-3">
+                  {candidates.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => selectCandidate(c.id)}
+                      className={`bg-slate-900/50 border rounded-xl p-4 cursor-pointer hover:bg-slate-800/30 transition-all duration-200 ${selected?.id === c.id ? 'border-blue-500/30 bg-blue-500/5' : 'border-slate-800/50'}`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-white">{c.name}</h3>
+                        <StatusBadge status={c.status} />
+                      </div>
+                      <p className="text-xs text-slate-400 mb-1">{c.email}</p>
+                      {c.college && <p className="text-xs text-slate-500 mb-2">{c.college}</p>}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {c.availability && (
+                          <span className="text-xs text-slate-500 capitalize">{c.availability.replace('_', ' ')}</span>
+                        )}
+                        {c.persona ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                            ✓ Persona
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-800 text-slate-500 border border-slate-700/50">
+                            No persona
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
           {/* Detail panel */}
           {selected && (
-            <div className="w-1/2 sticky top-24 self-start">
-              <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-5 sm:p-6">
+            <div className="w-full lg:w-1/2 lg:sticky lg:top-24 lg:self-start">
+              <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4 sm:p-5 lg:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-white">{selected.name}</h3>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setSelected(null)}
+                      className="lg:hidden flex items-center gap-1 text-sm text-slate-400 hover:text-white transition-colors py-2 pr-3"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back
+                    </button>
+                    <h3 className="text-lg font-bold text-white">{selected.name}</h3>
+                  </div>
                   <button
                     onClick={() => setSelected(null)}
-                    className="text-slate-500 hover:text-slate-300 transition-colors"
+                    className="text-slate-500 hover:text-slate-300 transition-colors p-2 -m-2"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -267,7 +384,7 @@ export default function AdminDashboard() {
                             key={s}
                             onClick={() => handleStatusUpdate(s)}
                             disabled={updating || selected.status === s}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors min-h-[44px] ${
                               selected.status === s
                                 ? `${STATUS_CONFIG[s].bg} ${STATUS_CONFIG[s].text} border ${STATUS_CONFIG[s].border} cursor-default`
                                 : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/50'
@@ -281,7 +398,7 @@ export default function AdminDashboard() {
 
                     {/* Details */}
                     <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <DetailField label="Email" value={selected.email} />
                         <DetailField label="Phone" value={selected.phone} />
                         <DetailField label="College" value={selected.college} />
@@ -312,9 +429,10 @@ export default function AdminDashboard() {
                           candidateId={selected.id}
                           persona={selectedPersona?.persona}
                           personaGenerated={selectedPersona?.persona_generated}
+                          personaGeneratedAt={selectedPersona?.persona_generated_at}
                           isAdmin={true}
-                          onPersonaGenerated={(newPersona) => {
-                            setSelectedPersona({ persona: newPersona, persona_generated: true });
+                          onPersonaGenerated={(newPersona, newTimestamp) => {
+                            setSelectedPersona({ persona: newPersona, persona_generated: true, persona_generated_at: newTimestamp });
                             load(); // refresh list to show persona indicator
                           }}
                         />

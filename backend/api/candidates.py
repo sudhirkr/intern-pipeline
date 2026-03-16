@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import uuid
@@ -16,7 +17,7 @@ from auth import (
     generate_submission_token, require_candidate_token,
     get_optional_admin, get_current_admin,
 )
-from services.resume_parser import parse_resume_file, parse_resume_from_url
+from services.resume_parser import parse_resume_file, parse_resume_from_url, compute_resume_hash
 from services.persona import generate_persona, candidate_to_dict
 
 
@@ -41,14 +42,21 @@ RESUME_DIR = Path("data/resumes")
 async def parse_resume(
     file: UploadFile | None = File(None),
     resume_url: str | None = Form(None),
+    candidate_id: int | None = Form(None),
+    db: Session = Depends(get_db),
 ):
     """Parse a resume PDF/DOCX and return extracted data.
 
     Accept either a file upload OR a resume URL.
-    Returns extracted fields — does NOT save to database.
+    If candidate_id is provided, uses resume hash caching to skip redundant LLM calls.
     """
     if not file and not resume_url:
         raise HTTPException(status_code=400, detail="Provide either a file upload or resume_url")
+
+    # Look up candidate for caching (optional)
+    candidate = None
+    if candidate_id:
+        candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
 
     if file:
         ext = Path(file.filename).suffix.lower()
@@ -59,20 +67,44 @@ async def parse_resume(
         if len(content) > 10 * 1024 * 1024:  # 10MB limit
             raise HTTPException(status_code=400, detail="File too large (max 10MB)")
 
+        # Check resume hash cache
+        file_hash = compute_resume_hash(content)
+        cached = False
+        if candidate and candidate.resume_hash == file_hash and candidate.resume_parsed:
+            # Return cached parsed data
+            try:
+                data = json.loads(candidate.resume_parsed)
+                return {"source": "file", "filename": file.filename, "extracted": data, "cached": True}
+            except (json.JSONDecodeError, TypeError):
+                pass  # Fall through to re-parse
+
         try:
-            data = parse_resume_file(content, file.filename)
+            data = await parse_resume_file(content, file.filename)
         except Exception as e:
             raise HTTPException(status_code=422, detail=f"Failed to parse resume: {str(e)}")
 
-        return {"source": "file", "filename": file.filename, "extracted": data}
+        # Store parsed data in candidate record
+        if candidate:
+            candidate.resume_hash = file_hash
+            candidate.resume_parsed = json.dumps(data)
+            db.commit()
+
+        return {"source": "file", "filename": file.filename, "extracted": data, "cached": False}
 
     elif resume_url:
         try:
-            data = parse_resume_from_url(resume_url)
+            data = await parse_resume_from_url(resume_url)
         except Exception as e:
             raise HTTPException(status_code=422, detail=f"Failed to fetch/parse resume: {str(e)}")
 
-        return {"source": "url", "url": resume_url, "extracted": data}
+        # Store parsed data with URL as hash for caching
+        if candidate:
+            url_hash = hashlib.sha256(resume_url.encode()).hexdigest()
+            candidate.resume_hash = url_hash
+            candidate.resume_parsed = json.dumps(data)
+            db.commit()
+
+        return {"source": "url", "url": resume_url, "extracted": data, "cached": False}
 
 
 def _save_resume_file(file: UploadFile) -> str:
@@ -259,18 +291,34 @@ def update_candidate_by_token(
     body: CandidateUpdate,
     db: Session = Depends(get_db),
 ):
-    """Candidate updates their own data using their submission token."""
+    """Candidate updates their own data using their submission token.
+
+    If persona-relevant fields change (skills, projects, work_experience, ai_tool_usage, challenge_solved),
+    the persona is invalidated (set to None) so it will be regenerated on next request.
+    """
     candidate = db.query(Candidate).filter(Candidate.submission_token == token).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Invalid submission token")
 
     # Update only provided fields (email cannot be changed)
     update_data = body.model_dump(exclude_unset=True)
+
+    # Check if any persona-relevant fields are being changed
+    persona_invalidated = False
     for field, value in update_data.items():
         if field == "email":
             continue  # Email is immutable
         if hasattr(candidate, field):
+            # Check if the field value actually changes and it's persona-relevant
+            current_value = getattr(candidate, field)
+            if field in PERSONA_FIELDS and current_value != value:
+                persona_invalidated = True
             setattr(candidate, field, value)
+
+    # Invalidate persona if relevant fields changed
+    if persona_invalidated and candidate.persona:
+        candidate.persona = None
+        candidate.persona_generated_at = None
 
     db.commit()
     db.refresh(candidate)
@@ -279,16 +327,41 @@ def update_candidate_by_token(
 
 # ── Persona Endpoints ──
 
+# Fields that invalidate persona when changed
+PERSONA_FIELDS = {"skills", "projects", "work_experience", "ai_tool_usage", "challenge_solved"}
+
+
 @router.post("/{candidate_id}/generate-persona", response_model=PersonaResponse)
 async def generate_candidate_persona(
     candidate_id: int,
+    force: bool = Query(False),
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
-    """Admin: Generate LLM persona for a candidate."""
+    """Admin: Generate LLM persona for a candidate.
+
+    If persona already exists and force=false, returns cached persona without calling LLM.
+    Use ?force=true to regenerate.
+    """
+    from datetime import datetime, timezone
+
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+
+    # Return cached persona if available and not forced
+    if candidate.persona and not force:
+        try:
+            persona_dict = json.loads(candidate.persona)
+            return PersonaResponse(
+                id=candidate.id,
+                name=candidate.name,
+                email=candidate.email,
+                persona=persona_dict,
+                persona_generated=True,
+            )
+        except (json.JSONDecodeError, TypeError):
+            pass  # Fall through to regenerate
 
     candidate_data = candidate_to_dict(candidate)
 
@@ -299,8 +372,9 @@ async def generate_candidate_persona(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Persona generation failed: {str(e)}")
 
-    # Store persona as JSON string
+    # Store persona as JSON string with timestamp
     candidate.persona = json.dumps(persona)
+    candidate.persona_generated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(candidate)
 
@@ -310,6 +384,7 @@ async def generate_candidate_persona(
         email=candidate.email,
         persona=persona,
         persona_generated=True,
+        persona_generated_at=candidate.persona_generated_at,
     )
 
 
@@ -362,4 +437,5 @@ def get_candidate_persona(
         email=candidate.email,
         persona=persona_data,
         persona_generated=persona_data is not None,
+        persona_generated_at=candidate.persona_generated_at,
     )

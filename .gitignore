@@ -1,3 +1,9 @@
+# Secrets
+.env
+
+# Logs
+logs/
+
 # Data & uploads
 data/
 *.db

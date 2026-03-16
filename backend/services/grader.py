@@ -19,7 +19,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "openrouter/openrouter/hunter-alpha"
+MODEL = "openrouter/hunter-alpha"
 
 WEIGHTS = {
     "deployed": 0.40,
