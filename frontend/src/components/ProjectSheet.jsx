@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
 function LinkIcon() {
@@ -25,7 +25,7 @@ function ExternalLink({ href, children }) {
 }
 
 function AttendanceBadge({ value }) {
-  if (!value) return <span className="text-slate-600 text-xs">—</span>;
+  if (!value) return null;
   const lower = value.toLowerCase();
   if (lower === 'present') {
     return <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Present</span>;
@@ -36,16 +36,19 @@ function AttendanceBadge({ value }) {
   return <span className="text-slate-400 text-xs">{value}</span>;
 }
 
-function AttendanceStats({ rows }) {
-  let present = 0, absent = 0, noData = 0;
-  rows.forEach(r => {
-    const v = (r.attendance || '').toLowerCase();
-    if (v === 'present') present++;
-    else if (v === 'absent') absent++;
-    else noData++;
+function AttendanceStats({ projects }) {
+  let present = 0, absent = 0, noData = 0, total = 0;
+  projects.forEach(p => {
+    p.students.forEach(s => {
+      total++;
+      const v = (s.attendance || '').toLowerCase();
+      if (v === 'present') present++;
+      else if (v === 'absent') absent++;
+      else noData++;
+    });
   });
   return (
-    <div className="flex flex-wrap gap-4 sm:gap-6 mb-6">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
       <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3">
         <p className="text-2xl font-bold text-emerald-400">{present}</p>
         <p className="text-xs text-emerald-500/80">Present</p>
@@ -59,8 +62,48 @@ function AttendanceStats({ rows }) {
         <p className="text-xs text-slate-500">No Data</p>
       </div>
       <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-3">
-        <p className="text-2xl font-bold text-blue-400">{rows.length}</p>
-        <p className="text-xs text-blue-500/80">Total</p>
+        <p className="text-2xl font-bold text-blue-400">{projects.length}</p>
+        <p className="text-xs text-blue-500/80">Projects</p>
+      </div>
+    </div>
+  );
+}
+
+function ProjectCard({ project }) {
+  return (
+    <div className="bg-slate-900/50 border border-slate-800/50 rounded-xl overflow-hidden hover:border-slate-700/50 transition-colors">
+      {/* Project header */}
+      <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-slate-800/50 bg-slate-800/20">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <h3 className="text-base font-semibold text-white">{project.project_name}</h3>
+          <div className="flex flex-wrap gap-3 text-sm">
+            {project.project_link && (
+              <ExternalLink href={project.project_link}>ChatGPT</ExternalLink>
+            )}
+            {project.dashboard_link && (
+              <ExternalLink href={project.dashboard_link}>Dashboard</ExternalLink>
+            )}
+            {project.github_repo_link && (
+              <ExternalLink href={project.github_repo_link}>GitHub</ExternalLink>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Students */}
+      <div className="divide-y divide-slate-800/30">
+        {project.students.map((student, i) => (
+          <div key={i} className="px-4 sm:px-5 py-3 flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <span className="text-sm font-medium text-white truncate">{student.student_name || '—'}</span>
+              <p className="text-xs text-slate-400 truncate mt-0.5">{student.email || '—'}</p>
+            </div>
+            <AttendanceBadge value={student.attendance} />
+          </div>
+        ))}
+        {project.students.length === 0 && (
+          <div className="px-4 sm:px-5 py-3 text-sm text-slate-500">No students listed</div>
+        )}
       </div>
     </div>
   );
@@ -145,14 +188,17 @@ export default function ProjectSheet() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [activeUrl, setActiveUrl] = useState('');
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!localStorage.getItem('admin_token')) {
-      navigate('/login');
-      return;
-    }
-    fetch('/api/admin/projects/sheet', {
+  const fetchProjects = useCallback((url) => {
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams();
+    if (url) params.set('sheet_url', url);
+
+    fetch(`/api/admin/projects/sheet?${params.toString()}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem('admin_token')}` },
     })
       .then(res => {
@@ -162,17 +208,37 @@ export default function ProjectSheet() {
       .then(data => setProjects(Array.isArray(data) ? data : []))
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [navigate]);
+  }, []);
 
-  const filtered = useMemo(() => {
-    if (!search) return projects;
-    const q = search.toLowerCase();
-    return projects.filter(r =>
-      (r.student_name || '').toLowerCase().includes(q) ||
-      (r.project_name || '').toLowerCase().includes(q) ||
-      (r.email || '').toLowerCase().includes(q)
-    );
-  }, [projects, search]);
+  useEffect(() => {
+    if (!localStorage.getItem('admin_token')) {
+      navigate('/login');
+      return;
+    }
+    fetchProjects('');
+  }, [navigate, fetchProjects]);
+
+  const handleLoadSheet = (e) => {
+    e.preventDefault();
+    setActiveUrl(sheetUrl);
+    fetchProjects(sheetUrl);
+  };
+
+  const handleUseDefault = () => {
+    setSheetUrl('');
+    setActiveUrl('');
+    fetchProjects('');
+  };
+
+  const filtered = search
+    ? projects.filter(p =>
+        (p.project_name || '').toLowerCase().includes(search.toLowerCase()) ||
+        p.students.some(s =>
+          (s.student_name || '').toLowerCase().includes(search.toLowerCase()) ||
+          (s.email || '').toLowerCase().includes(search.toLowerCase())
+        )
+      )
+    : projects;
 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
@@ -193,7 +259,7 @@ export default function ProjectSheet() {
       <div className="min-h-screen bg-slate-925 flex items-center justify-center">
         <div className="text-center">
           <p className="text-rose-400 mb-2">{error}</p>
-          <button onClick={() => window.location.reload()} className="text-sm text-blue-400 hover:text-blue-300">Retry</button>
+          <button onClick={() => fetchProjects(activeUrl)} className="text-sm text-blue-400 hover:text-blue-300">Retry</button>
         </div>
       </div>
     );
@@ -230,10 +296,46 @@ export default function ProjectSheet() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        {/* Google Sheet URL input */}
+        <form onSubmit={handleLoadSheet} className="mb-6 flex flex-col sm:flex-row gap-3">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              placeholder="Paste Google Sheet URL to load custom data..."
+              value={sheetUrl}
+              onChange={e => setSheetUrl(e.target.value)}
+              className="w-full bg-slate-800/80 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-blue-500/20"
+            >
+              Load Sheet
+            </button>
+            {activeUrl && (
+              <button
+                type="button"
+                onClick={handleUseDefault}
+                className="px-5 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-slate-300 text-sm rounded-xl transition-colors"
+              >
+                Use Default
+              </button>
+            )}
+          </div>
+        </form>
+
+        {activeUrl && (
+          <div className="mb-4 text-xs text-slate-500 truncate">
+            Loaded from: {activeUrl}
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h2 className="text-xl font-bold text-white">Student Projects</h2>
-            <p className="text-sm text-slate-400">Attendance, dashboard links &amp; GitHub repos</p>
+            <p className="text-sm text-slate-400">{projects.length} projects, grouped by team</p>
           </div>
           <div className="relative w-full sm:w-72">
             <input
@@ -249,67 +351,20 @@ export default function ProjectSheet() {
           </div>
         </div>
 
-        <AttendanceStats rows={projects} />
+        <AttendanceStats projects={projects} />
 
-        {/* Desktop table */}
-        <div className="hidden md:block bg-slate-900/50 border border-slate-800/50 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-800/50">
-                  <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Student Name</th>
-                  <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Email</th>
-                  <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Project Name</th>
-                  <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Attendance</th>
-                  <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">Dashboard</th>
-                  <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-4 py-3">GitHub Repo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((row, i) => (
-                  <tr key={i} className="border-b border-slate-800/30 hover:bg-slate-800/30 transition-colors">
-                    <td className="px-4 py-3 text-sm font-medium text-white whitespace-nowrap">{row.student_name || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-400 whitespace-nowrap">{row.email || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-300">{row.project_name || '—'}</td>
-                    <td className="px-4 py-3"><AttendanceBadge value={row.attendance} /></td>
-                    <td className="px-4 py-3"><ExternalLink href={row.dashboard_link} /></td>
-                    <td className="px-4 py-3"><ExternalLink href={row.github_repo_link} /></td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">
-                      {search ? 'No results match your search' : 'No data available'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Mobile cards */}
-        <div className="md:hidden space-y-3">
-          {filtered.map((row, i) => (
-            <div key={i} className="bg-slate-900/50 border border-slate-800/50 rounded-xl p-4">
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="text-sm font-semibold text-white">{row.student_name || '—'}</h3>
-                <AttendanceBadge value={row.attendance} />
-              </div>
-              <p className="text-xs text-slate-400 mb-1">{row.email || '—'}</p>
-              <p className="text-sm text-slate-300 mb-3">{row.project_name || '—'}</p>
-              <div className="flex flex-wrap gap-3">
-                <ExternalLink href={row.dashboard_link}>Dashboard</ExternalLink>
-                <ExternalLink href={row.github_repo_link}>GitHub</ExternalLink>
-              </div>
-            </div>
+        {/* Project cards grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {filtered.map((project, i) => (
+            <ProjectCard key={i} project={project} />
           ))}
-          {filtered.length === 0 && (
-            <div className="text-center py-8 text-sm text-slate-500">
-              {search ? 'No results match your search' : 'No data available'}
-            </div>
-          )}
         </div>
+
+        {filtered.length === 0 && (
+          <div className="text-center py-12 text-sm text-slate-500">
+            {search ? 'No projects match your search' : 'No projects available'}
+          </div>
+        )}
       </main>
     </div>
   );

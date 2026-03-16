@@ -16,6 +16,8 @@ setup_logging()
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from database import Base, engine, SessionLocal
 from api import candidates
@@ -94,11 +96,32 @@ app.include_router(grading_router)
 app.include_router(projects_router)
 
 
+# --- Serve frontend (production) ---
+import os
+
+FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "dist")
+
+
 @app.get("/")
 def root():
+    if os.path.isdir(FRONTEND_DIR):
+        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
     return {"service": "Intern Selection Pipeline", "status": "running"}
 
 
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+if os.path.isdir(FRONTEND_DIR):
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")), name="assets")
+
+    # SPA fallback: serve index.html for all non-API, non-static routes
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        file_path = os.path.join(FRONTEND_DIR, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
