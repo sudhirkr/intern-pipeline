@@ -74,6 +74,13 @@ function MobileNav({ current }) {
           >
             Assignments
           </Link>
+          <Link
+            to="/admin/projects"
+            onClick={() => setOpen(false)}
+            className={`block px-4 py-3 text-sm transition-colors ${current === 'projects' ? 'text-white bg-blue-500/10 font-medium' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+          >
+            Projects
+          </Link>
           <div className="border-t border-slate-800/50" />
           <div className="px-4 py-2 text-xs text-slate-500">{localStorage.getItem('admin_email')}</div>
           <button
@@ -93,6 +100,7 @@ function DesktopNav() {
     <nav className="hidden sm:flex items-center gap-4 mr-4">
       <Link to="/admin" className="text-sm text-white font-medium">Candidates</Link>
       <Link to="/admin/assignments" className="text-sm text-slate-400 hover:text-white transition-colors">Assignments</Link>
+      <Link to="/admin/projects" className="text-sm text-slate-400 hover:text-white transition-colors">Projects</Link>
     </nav>
   );
 }

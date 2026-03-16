@@ -22,6 +22,7 @@ from api import candidates
 from api.admin import router as auth_router, admin_router, seed_admin
 from api.assignments import router as assignment_router, candidate_assignment_router
 from api.assignments import grading_router
+from api.projects import router as projects_router
 
 logger = get_logger("main")
 
@@ -90,6 +91,7 @@ app.include_router(admin_router)
 app.include_router(assignment_router)
 app.include_router(candidate_assignment_router)
 app.include_router(grading_router)
+app.include_router(projects_router)
 
 
 @app.get("/")

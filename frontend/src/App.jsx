@@ -5,6 +5,7 @@ import ApplicationView from './components/ApplicationView';
 import LoginPage from './components/LoginPage';
 import AdminDashboard from './components/AdminDashboard';
 import AssignmentManager from './components/AssignmentManager';
+import ProjectSheet from './components/ProjectSheet';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/assignments" element={<AssignmentManager />} />
+          <Route path="/admin/projects" element={<ProjectSheet />} />
         </Routes>
       </BrowserRouter>
     </ToastProvider>

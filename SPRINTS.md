@@ -46,6 +46,32 @@
 
 ---
 
+## Sprint 5: Google Sheet Projects Page (Admin)
+**Goal:** Display student project data from a public Google Sheet in the admin dashboard.
+
+### Backend
+- [x] Create `api/projects.py` — router with `GET /api/admin/projects/sheet`
+- [x] Fetches Modified_Groups tab CSV from Google Sheet (gid=39892379)
+- [x] Skips first row (note), parses second row as headers, returns flat JSON array
+- [x] 5-minute in-memory cache to avoid hitting Google on every request
+- [x] Requires admin auth (`get_current_admin`)
+- [x] Register router in `main.py`
+
+### Frontend
+- [x] Create `ProjectSheet.jsx` — new page component
+- [x] Fetches from `/api/admin/projects/sheet` on mount
+- [x] Attendance summary stats (Present/Absent/No Data/Total) with color-coded cards
+- [x] Search/filter by name, email, or project
+- [x] Attendance badges: Present (green), Absent (red), no data (muted)
+- [x] Clickable links for Dashboard Link and GitHub Repo Link
+- [x] Desktop table + mobile card layout (matching existing responsive patterns)
+- [x] Dark theme styling (slate-925, blue/purple accents)
+- [x] Admin nav updated with "Projects" link in AdminDashboard (desktop + mobile)
+- [x] Route added in `App.jsx` at `/admin/projects`
+- [x] All 106 existing tests pass, frontend builds without errors
+
+---
+
 ## Sprint 4: Responsive UI
 **Goal:** Works well on mobile, tablet, and desktop.
 
