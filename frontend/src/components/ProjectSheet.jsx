@@ -100,9 +100,11 @@ function ProjectCard({ project, evaluation, onEvaluate }) {
       <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-slate-800/50 bg-slate-800/20">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">
-            <h3 className="text-base font-semibold text-white truncate">{project.project_name}</h3>
+            <h3 className="text-base font-semibold text-white">{project.project_name}</h3>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
             {/* Score badge */}
-            {!editing && (
+            {!editing ? (
               <button
                 onClick={() => setEditing(true)}
                 className={`shrink-0 inline-flex items-center px-2.5 py-1 rounded-lg text-sm font-bold border cursor-pointer hover:ring-2 hover:ring-blue-500/40 transition-all ${
@@ -114,9 +116,7 @@ function ProjectCard({ project, evaluation, onEvaluate }) {
               >
                 {evaluation?.marks != null ? `${evaluation.marks}/10` : '—/10'}
               </button>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
+            ) : null}
             {project.project_link && (
               <ExternalLink href={project.project_link}>ChatGPT</ExternalLink>
             )}
